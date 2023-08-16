@@ -54,7 +54,7 @@ app.layout = dbc.Container(children=[
     dcc.Store(id='dataset_fixed', data=df_store),
     
     # Layout 
-    # Row 1
+    ###### Row 1 #######
     
     dbc.Row([
         dbc.Col([
@@ -93,7 +93,125 @@ app.layout = dbc.Container(children=[
                     ])
                 ])
             ], style=tab_card)
-        ],sm=8, lg=3)
+        ],sm=8, lg=3),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.H6("Ano de análise"),
+                            dcc.Dropdown(
+                                id = "select_ano",
+                                value= df_main.at[df_main.index[1], "ANO"],
+                                clearable= False,
+                                className= 'dbc',
+                                options= 
+                                [{"label": x, "value":x } for x in df_main["ANO"].unique()
+                            ])
+                        ], sm=6),
+                        dbc.Col([
+                            html.H6("Região de análise"),
+                            dcc.Dropdown(
+                                id = "select_regiao",
+                                value= df_main.at[df_main.index[1], "REGIÃO"],
+                                clearable= False,
+                                className= 'dbc',
+                                options=[
+                                    {"label": x, "value": x} for x in df_main["REGIÃO"].unique()
+                                ]
+                            )
+                        ], sm =6)
+                    ]),
+                    dbc.Row([
+                        dbc.Col([
+                            dcc.Graph(id='regiaobar_graph', config={'displayModeBar': False, 'showTips': False})
+                        ], sm = 12, md= 6),
+                        dbc.Col([
+                            dcc.Graph(id='estadobar_graph', config={'displayModeBar': False, 'showTips': False})
+                        ], sm = 12, md= 6),
+                    ])
+                ])
+            ])
+        ])
+    ]),
+    
+    ###### Row 2 #######
+    
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.H3("Preço x Estado"),
+                            html.H6("Comparação temporal entre estados")
+                        ]),
+                    dbc.Row([
+                        dbc.Col([
+                            dcc.Graph(id = "preco_estado", config={'displayModeBar': False, 'showTips': False})
+                        ])
+                    ])
+                    ])
+                ])
+            ])
+        ], sm = 5),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            html.H3("Comparação direta"),
+                            html.H6("Qual preço é menor em um dado periodo de tempo"),
+                            dbc.Row([
+                                dbc.Col([
+                                    dcc.Dropdown(
+                                        id = "select_estado1",
+                                        clearable= False,
+                                        className= 'dbc',
+                                        value= df_main.at[df_main.index[1], "ESTADO"],
+                                        options= [{"label": x , "value": x } for x in df_main["ESTADO"].unique()]
+                                    )
+                                ], sm = 6),
+                                dbc.Col([
+                                    dcc.Dropdown(
+                                        id = "select_estado2",
+                                        clearable= False,
+                                        className= 'dbc',
+                                        value= df_main.at[df_main.index[2], "ESTADO"],
+                                        options= [{"label": x , "value": x } for x in df_main["ESTADO"].unique()]
+                                    )
+                                ], sm = 6),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dcc.Graph(id = "compare_graph", config={'displayModeBar': False, 'showTips': False})
+                                    ])
+                                ])
+                            ])
+                        ])
+                    ])
+                ])
+            ])
+        ], sm = 4),
+        dbc.Col([
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4("Teste"),
+                        ])
+                    ])
+                ])
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4("Teste2")
+                        ])
+                    ])
+                ])
+            ])
+        ])
     ])
 
 
