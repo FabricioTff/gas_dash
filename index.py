@@ -278,13 +278,14 @@ app.layout = dbc.Container(children=[
 
 @app.callback(
     Output("static_maxmin", "figure"),
-    [Input("dataset", "data"),
+    [Input('dataset', "data"),
     Input(ThemeSwitchAIO.ids.switch("theme"), "value")]
 )
 def func(data, toggle):
     template = template_theme1 if toggle else template_theme2
     
-    dff = pd.DataFrame(data), 
+    dff = pd.DataFrame(data)
+    
     min = dff.groupby(["ANO"])["VALOR REVENDA (R$/L)"].min()
     max = dff.groupby(["ANO"])["VALOR REVENDA (R$/L)"].max()
 
@@ -293,9 +294,11 @@ def func(data, toggle):
     
     fig = px.line(final_df, x = final_df.index, y = final_df.columns, template=template)
     
-    fig.update.layout(main_config, height = 150, xaxis_title = None, yaxis_title = None)
+    fig.update_layout(main_config, height = 150, xaxis_title = None, yaxis_title = None)
     
     return fig
+
+
 
 
 
