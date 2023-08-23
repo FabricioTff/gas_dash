@@ -53,6 +53,8 @@ df_main.rename(columns= {"DATA MEDIA":"DATA", "PREÇO MÉDIO REVENDA": "VALOR RE
 df_main["ANO"] = df_main["DATA"].apply(lambda x: str(x.year))
 df_main = df_main.reset_index() 
 
+df_main = df_main[df_main.PRODUTO == 'GASOLINA COMUM']
+
 df_main.drop(['UNIDADE DE MEDIDA', 'COEF DE VARIAÇÃO REVENDA', 'COEF DE VARIAÇÃO DISTRIBUIÇÃO', 
     'NÚMERO DE POSTOS PESQUISADOS', 'DATA INICIAL', 'DATA FINAL', 'PREÇO MÁXIMO DISTRIBUIÇÃO', 'PREÇO MÍNIMO DISTRIBUIÇÃO', 
     'DESVIO PADRÃO DISTRIBUIÇÃO', 'MARGEM MÉDIA REVENDA', 'PREÇO MÍNIMO REVENDA', 'PREÇO MÁXIMO REVENDA', 'DESVIO PADRÃO REVENDA', 
@@ -65,7 +67,7 @@ app.layout = dbc.Container(children=[
     # Armazenar o dataset
     dcc.Store(id='dataset', data=df_store),
     dcc.Store(id='dataset_fixed', data=df_store),
-    
+    dcc.Store(id="controller", data = {"play":False}),
     # Layout 
     ###### Row 1 #######
     
@@ -163,7 +165,7 @@ app.layout = dbc.Container(children=[
                                     dcc.Dropdown(
                                         id = "select_estado0",
                                         className= 'dbc',
-                                        value= df_main.at[df_main.index[1], "ESTADO"],
+                                        value= [df_main.at[df_main.index[3],'ESTADO'], df_main.at[df_main.index[13],'ESTADO'], df_main.at[df_main.index[6],'ESTADO']],
                                         options= [{"label": x , "value": x } for x in df_main["ESTADO"].unique()],
                                         multi = True
                                     )
@@ -281,26 +283,269 @@ app.layout = dbc.Container(children=[
     [Input('dataset', "data"),
     Input(ThemeSwitchAIO.ids.switch("theme"), "value")]
 )
-def func(data, toggle):
+def graph_1(data, toggle):
     template = template_theme1 if toggle else template_theme2
-    
-    dff = pd.DataFrame(data)
-    
-    min = dff.groupby(["ANO"])["VALOR REVENDA (R$/L)"].min()
-    max = dff.groupby(["ANO"])["VALOR REVENDA (R$/L)"].max()
 
-    final_df = pd.concat([max, min], axis = 1)
-    final_df.columns = ["Máximo", "Mínimo"]
+    dff = pd.DataFrame(data)
+    dff.to_excel("df_excel.xlsx")
+    max = dff.groupby(['ANO'])['VALOR REVENDA (R$/L)'].max().to_frame()
+    min = dff.groupby(['ANO'])['VALOR REVENDA (R$/L)'].min().to_frame()
+
+    final_df = pd.concat([max, min], axis=1)
+    final_df.columns = ['Máximo', 'Mínimo']
+
+    fig = px.line(final_df, x=final_df.index, y=final_df.columns, template=template)
     
-    fig = px.line(final_df, x = final_df.index, y = final_df.columns, template=template)
-    
-    fig.update_layout(main_config, height = 150, xaxis_title = None, yaxis_title = None)
-    
+    # updates
+    fig.update_layout(main_config, height=150, xaxis_title=None, yaxis_title=None)
+
     return fig
 
 
+@app.callback(
+        [Output("regiaobar_graph", "figure"),
+        Output('estadobar_graph', "figure")],
+        [Input("dataset_fixed", "data"),
+        Input("select_ano", "value"),
+        Input("select_regiao", "value"),
+        Input(ThemeSwitchAIO.ids.switch("theme"), "value")]
+)
+def graph_2(data, ano, regiao,  toggle):
+    template = template_theme1 if toggle else template_theme2
+    
+    df_filtered = pd.DataFrame(data)
+    df_filtered = df_filtered[df_filtered.ANO.isin([ano])]
+    
+    df_regiao= df_filtered.groupby(["ANO", "REGIÃO"])['VALOR REVENDA (R$/L)'].mean().reset_index()
+    df_regiao = df_regiao.sort_values(by= "VALOR REVENDA (R$/L)", ascending= True)
+    df_regiao["VALOR REVENDA (R$/L)"] = df_regiao["VALOR REVENDA (R$/L)"].round(decimals=2)
+    
+    df_estado = df_filtered.groupby(["ANO", "ESTADO", "REGIÃO"])['VALOR REVENDA (R$/L)'].mean().reset_index()
+    df_estado = df_estado[df_estado.REGIÃO.isin([regiao])]
+    df_estado = df_estado.sort_values(by="VALOR REVENDA (R$/L)", ascending=True)
+    df_estado["VALOR REVENDA (R$/L)"] = df_estado["VALOR REVENDA (R$/L)"].round(decimals=2)
+
+    fig1_text = [f"{x} - R$ {y}" for x,y in zip(df_regiao.REGIÃO.unique(),df_regiao["VALOR REVENDA (R$/L)"].unique())]
+    fig2_text = [f"R$ {y} - {x}" for x,y in zip(df_estado.ESTADO.unique(),df_estado["VALOR REVENDA (R$/L)"].unique())]
 
 
+    fig1 = go.Figure(
+        go.Bar(
+            x = df_regiao["VALOR REVENDA (R$/L)"],
+            y= df_regiao["REGIÃO"],
+            orientation="h",
+            text=fig1_text,
+            textposition='auto',
+            insidetextanchor='end',
+            insidetextfont=dict(family='Times', size=12)
+        )
+    )
+    
+    fig2 = go.Figure(
+        go.Bar(
+            x = df_estado["VALOR REVENDA (R$/L)"],
+            y= df_estado["ESTADO"],
+            orientation="h",
+            text=fig2_text,
+            textposition='auto',
+            insidetextanchor='end',
+            insidetextfont=dict(family='Times', size=12)
+        )
+    )
+    
+    #fig1.update_xaxes(autorange='reversed') - explicar por que isso não funciona
+    fig1.update_layout(main_config, yaxis={'showticklabels':False}, height=140, template=template)
+    fig2.update_layout(main_config, yaxis={'showticklabels':False}, height=140, template=template)
+
+    # range
+    fig1.update_layout(xaxis_range=[df_regiao['VALOR REVENDA (R$/L)'].max(), df_regiao['VALOR REVENDA (R$/L)'].min() - 0.15])
+    fig2.update_layout(xaxis_range=[df_estado['VALOR REVENDA (R$/L)'].min() - 0.15, df_estado['VALOR REVENDA (R$/L)'].max()])
+    
+    return [fig1, fig2]
+    
+    
+    
+@app.callback(
+        Output("animation_graph","figure"),
+        [Input("dataset", "data"),
+         Input("select_estado0", "value"),
+         Input(ThemeSwitchAIO.ids.switch("theme"), "value")]
+)    
+def graph_3(data , estado, toggle):
+    template = template_theme1 if toggle else template_theme2
+    
+    dff_2 = pd.DataFrame(data)
+    mask = dff_2.ESTADO.isin(estado)
+    
+    fig = px.line(
+        dff_2[mask], x = "DATA", y= "VALOR REVENDA (R$/L)", color="ESTADO", template=template
+    )
+    
+    fig.update_layout(main_config, height = 425, xaxis_title=None)
+            
+    return fig
+
+
+@app.callback(
+        Output("direct_comparison_graph","figure"),
+        Output("desc_comparison","children"),
+        Input("dataset", "data"),
+        Input("select_estado1","value"),
+        Input("select_estado2","value"),
+        Input(ThemeSwitchAIO.ids.switch("theme"), "value")
+)
+def graph_4(data, est1, est2, toggle):
+    template = template_theme1 if toggle else template_theme2
+    
+    dff = pd.DataFrame(data)
+    dff1 = dff[dff.ESTADO.isin([est1])]
+    dff2 = dff[dff.ESTADO.isin([est2])]
+    
+    df_estado1 = dff1.groupby(pd.PeriodIndex(dff1["DATA"], freq="M"))["VALOR REVENDA (R$/L)"].mean().reset_index()
+    df_estado2 = dff2.groupby(pd.PeriodIndex(dff2["DATA"], freq="M"))["VALOR REVENDA (R$/L)"].mean().reset_index()
+    
+    df_estado1["DATA"] = pd.PeriodIndex(df_estado1["DATA"], freq="M")
+    df_estado2["DATA"] = pd.PeriodIndex(df_estado2["DATA"], freq="M")
+    
+    df_final = pd.DataFrame()
+    df_final['DATA'] = df_estado1['DATA'].astype('datetime64[ns]')
+    df_final['VALOR REVENDA (R$/L)'] = df_estado1['VALOR REVENDA (R$/L)']-df_estado2['VALOR REVENDA (R$/L)']
+    fig = go.Figure()
+    
+    fig.add_scattergl(name= est1, x= df_final["DATA"], y= df_final['VALOR REVENDA (R$/L)'].round(4) )
+    fig.add_scattergl(name= est2, x= df_final["DATA"], y= df_final['VALOR REVENDA (R$/L)'].round(4).where(df_final['VALOR REVENDA (R$/L)'] > 0.00000))
+    
+    fig.update_layout(main_config, height=350, template=template)
+    fig.update_yaxes(range = [-0.7,0.7])
+    
+    fig.add_annotation(text=f'{est2} mais barato',
+        xref="paper", yref="paper",
+        font=dict(
+            family="Courier New, monospace",
+            size=12,
+            color="#ffffff"
+            ),
+        align="center", bgcolor="rgba(0,0,0,0.5)", opacity=0.8,
+        x=0.1, y=0.75, showarrow=False)
+
+    fig.add_annotation(text=f'{est1} mais barato',
+        xref="paper", yref="paper",
+        font=dict(
+            family="Courier New, monospace",
+            size=12,
+            color="#ffffff"
+            ),
+        align="center", bgcolor="rgba(0,0,0,0.5)", opacity=0.8,
+        x=0.1, y=0.25, showarrow=False) 
+
+    # Definindo o texto
+    text = f"Comparando {est1} e {est2}. Se a linha estiver acima do eixo X, {est2} tinha menor preço, do contrário, {est1} tinha um valor inferior"
+    return [fig, text]
+
+@app.callback(
+    Output("card1_indicators", "figure"),
+    Input("dataset", "data"),
+    Input("select_estado1","value"),
+    Input(ThemeSwitchAIO.ids.switch("theme"), "value")
+)
+def card1(data, estado, toggle):
+    template = template_theme1 if toggle else template_theme2
+    
+    dff = pd.DataFrame(data)
+    df_final = dff[dff.ESTADO.isin([estado])]
+
+    data1 = str(int(dff.ANO.min()) - 1)
+    data2 = dff.ANO.max()
+    
+    fig = go.Figure()
+    
+    fig.add_trace(
+        go.Indicator(
+            mode= "number+delta",
+            title= {"text": f"<span style='size:60%'>{estado}</span><br><span style='font-size:0.7em'>{data1} - {data2}</span>"},
+            value = df_final.at[df_final.index[-1], 'VALOR REVENDA (R$/L)'],
+            number = {'prefix': "R$", 'valueformat': '.2f'},
+            delta = {'relative': True, 'valueformat': '.1%', 'reference': df_final.at[df_final.index[0],'VALOR REVENDA (R$/L)']}
+        )
+    )
+    fig.update_layout(main_config, height=250, template=template)
+    
+    return fig
+
+@app.callback(
+    Output("card2_indicators", "figure"),
+    Input("dataset", "data"),
+    Input("select_estado2","value"),
+    Input(ThemeSwitchAIO.ids.switch("theme"), "value")
+)
+def card2(data, estado, toggle):
+    template = template_theme1 if toggle else template_theme2
+    
+    dff = pd.DataFrame(data)
+    df_final = dff[dff.ESTADO.isin([estado])]
+
+    data1 = str(int(dff.ANO.min()) - 1)
+    data2 = dff.ANO.max()
+    
+    fig = go.Figure()
+    
+    fig.add_trace(
+        go.Indicator(
+            mode= "number+delta",
+            title= {"text": f"<span style='size:60%'>{estado}</span><br><span style='font-size:0.7em'>{data1} - {data2}</span>"},
+            value = df_final.at[df_final.index[-1], 'VALOR REVENDA (R$/L)'],
+            number = {'prefix': "R$", 'valueformat': '.2f'},
+            delta = {'relative': True, 'valueformat': '.1%', 'reference': df_final.at[df_final.index[0],'VALOR REVENDA (R$/L)']}
+        )
+    )
+    fig.update_layout(main_config, height=250, template=template)
+    
+    return fig
+
+# Date Range
+@app.callback(
+    Output('dataset', 'data'),
+    [Input('rangeslider', 'value'),
+    Input('dataset_fixed', 'data')], prevent_initial_call=True
+)
+def range_slider(range, data):
+    dff = pd.DataFrame(data)
+    dff = dff[(dff['ANO'] >= f'{range[0]}-01-01') & (dff['ANO'] <= f'{range[1]}-31-12')]
+    data = dff.to_dict()
+
+    return data
+
+
+# Animation rangeslider
+@app.callback(
+    Output('rangeslider', 'value'),
+    Output('controller', 'data'), 
+
+    Input('interval', 'n_intervals'),
+    Input('play-button', 'n_clicks'),
+    Input('stop-button', 'n_clicks'),
+
+    State('rangeslider', 'value'), 
+    State('controller', 'data'), 
+    prevent_initial_callbacks = True)
+def controller(n_intervals, play, stop, rangeslider, controller):
+    trigg = dash.callback_context.triggered[0]["prop_id"]
+
+    if ('play-button' in trigg and not controller["play"]):
+        if not controller["play"]:
+            controller["play"] = True
+            rangeslider[1] = 2007
+        
+    elif 'stop-button' in trigg:
+        if controller["play"]:
+            controller["play"] = False
+
+    if controller["play"]:
+        if rangeslider[1] == 2021:
+            controller['play'] = False
+        rangeslider[1] += 1 if rangeslider[1] < 2021 else 0
+    
+    return rangeslider, controller
 
 # Run server
 if __name__ == '__main__':
